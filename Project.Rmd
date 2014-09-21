@@ -1,0 +1,99 @@
+---
+title: "Practical Machine Learning - Project"
+author: "Corneliu Dicusar"
+date: "Sunday, September 21, 2014"
+output: html_document
+---
+
+##Summary:
+
+The aim of the project is to implement a machine learning algorithm for the "Weight Lifting Exercise Dataset" (http://groupware.les.inf.puc-rio.br/har). The model will try to predict the of the "classe" variable.
+
+##Data description
+The provided data sets has 160 columns with various recordings related to the "Weight Lifting Exercise" experiment. These variables describe a range of recordings, most of them of a discreent nature. However there are a number of columns which have either NA or blank values for most of the records in the dataset, which can adversely impact the analisys. The class of a record is given by the value in the column "classe", which can have the following options: "A", "B","C","D","E".
+
+##Reading and cleaning data
+Both the provided training and testing sets have been downloaded locally and loaded in 
+
+
+```{r echo = FALSE, results='hide', message=FALSE, warning=FALSE}
+library(caret)
+library(MASS)
+library(randomForest)
+```
+```{r}
+ trainingdt <- read.csv("pml-training.csv", header = TRUE, stringsAsFactors = FALSE,  na.strings=c("NA","NaN", ""))
+ testingdt <- read.csv("pml-testing.csv", header = TRUE, stringsAsFactors = FALSE, na.strings=c("NA","NaN", ""))
+
+```
+To be noted that the options "NA", "NaN", "" are consider as equivalent to "not available". Afterwards the columns that have the majority of cases NA (<90%)  are going to be eliminated from the training dataset. 
+
+```{r}
+nonNA <-colSums(is.na(trainingdt))
+
+tempList = character(0)
+        for (i in 1:ncol(trainingdt)){
+                       if(nonNA[i] > 0.9 * nrow(trainingdt))
+                       {
+                               tempList<-c(tempList, colnames(trainingdt)[i])
+                       }                     
+                }
+        tempList<- c(tempList, "user_name", "new_window","cvtd_timestamp","X","raw_timestamp_part_1","raw_timestamp_part_2")
+        trainingdt<- trainingdt[,!(names(trainingdt) %in% tempList)]
+
+```
+As can be seen above, there are a number of columns which have been eliminated from the analisys, as they are related to the specific instance of the record, and are not relevant to the model: "user_name", "new_window","cvtd_timestamp","X","raw_timestamp_part_1","raw_timestamp_part_2"
+
+As a result the final contain 55 columns.
+
+##Building the model
+
+The training set is split into a training and a testing pool of case with the proportion 80/20. This training subset will be used for cross-validation.
+```{r}
+        inTrain <- createDataPartition (y=trainingdt$classe, p=0.8, list=FALSE)
+        training2 <- trainingdt[inTrain,]
+        testing2 <- trainingdt[-inTrain,]
+```
+##Chosing the model
+The first choice machine learning algorithm was LDA (Linear Discriminant Analysis) which attempts to express one dependent variable as a linear combination of other features or measurements
+
+```{r}
+modlda <- train(as.factor(classe)~., data = training2, method = "lda")
+```
+
+Next we cross-referencing the model on the training set we've previously isolated, and we create the confusion matrix to analyze the data
+```{r}
+plda <- predict(modlda, testing2)
+```
+But this produced an accuracy of 71% which is not satifactory.
+
+The next choice was the qda (Quadratic Discriminant Analysis ) algorithm.
+```{r}
+modqda <- train(as.factor(classe)~., data = training2, method = "qda")
+
+pqda <- predict(modqda, testing2)
+```
+
+This provided an accuracy of aproximately 90%, which is an acceptable level. 
+A graphic representation of the performance can be seen in the plot below:
+
+
+```{r}
+cfm <- confusionMatrix(pqda,testing2$classe)
+cfm
+
+plot(cfm$table, main="QLD Testing", ylab = "Actual")
+```
+
+##Estimating the test set
+
+Once the model is selected the testing set is submitted. The results of the estimation can be seen below:
+```{r  results='hide'}
+        testingdt<- testingdt[,!(names(testingdt) %in% tempList)]
+        testingdt[complete.cases(testingdt),]
+
+```{r}
+        predict(modlda, testingdt)
+```
+
+
